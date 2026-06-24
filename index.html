@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Управление огнями ДП6-002</title>
+    <style>
+        body {
+            background-color: #121212;
+            color: #e0e0e0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            padding: 30px;
+            gap: 40px;
+        }
+
+        /* Контейнер для фото поезда */
+        .train-viewer {
+            position: relative;
+            width: 450px; /* Фиксированная ширина для точного совпадения координат */
+            user-select: none;
+        }
+
+        .train-viewer img {
+            width: 100%;
+            display: block;
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.7);
+        }
+
+        /* Общие стили для зон свечения фар */
+        .buffer-light {
+            position: absolute;
+            border-radius: 50%;
+            background-color: transparent;
+            opacity: 0;
+            transition: opacity 0.1s ease, box-shadow 0.1s ease;
+            pointer-events: none; /* Чтобы круги не мешали кликам, если нужно */
+        }
+
+        /* Точные координаты для ЛЕВОЙ нижней фары */
+        .light-left-bottom {
+            top: 59.5%;
+            left: 10.5%;
+            width: 50px;
+            height: 50px;
+        }
+
+        /* Точные координаты для ПРАВОЙ нижней фары */
+        .light-right-bottom {
+            top: 60.5%;
+            right: 11.5%;
+            width: 50px;
+            height: 50px;
+        }
+
+        /* Стили свечения: Белый свет */
+        .buffer-light.white-on {
+            opacity: 0.85;
+            background: radial-gradient(circle, rgba(255,255,255,1) 0%, rgba(255,251,214,0.8) 40%, rgba(255,255,255,0) 70%);
+            box-shadow: 0 0 40px 15px rgba(255, 253, 224, 0.9);
+        }
+
+        /* Стили свечения: Красный свет */
+        .buffer-light.red-on {
+            opacity: 0.9;
+            background: radial-gradient(circle, rgba(255,50,50,1) 0%, rgba(230,0,0,0.8) 50%, rgba(255,0,0,0) 70%);
+            box-shadow: 0 0 35px 12px rgba(255, 20, 20, 0.9);
+        }
+
+        /* Панель кнопок управления */
+        .control-panel {
+            background-color: #1e1e1e;
+            padding: 25px;
+            border-radius: 14px;
+            width: 320px;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.5);
+            border: 1px solid #2d2d2d;
+        }
+
+        h3 {
+            margin-top: 0;
+            margin-bottom: 15px;
+            font-size: 14px;
+            letter-spacing: 1px;
+            color: #888;
+            border-bottom: 1px solid #333;
+            padding-bottom: 5px;
+        }
+
+        .btn-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 25px;
+        }
+
+        button {
+            background-color: #2a2a2a;
+            color: #fff;
+            border: 1px solid #3a3a3a;
+            padding: 12px;
+            font-size: 12px;
+            font-weight: bold;
+            cursor: pointer;
+            border-radius: 6px;
+            transition: all 0.2s;
+        }
+
+        button:hover {
+            background-color: #3a3a3a;
+            border-color: #555;
+        }
+
+        button:active {
+            transform: scale(0.98);
+        }
+
+        .btn-off {
+            grid-column: span 2;
+            background-color: #3d1d1d;
+            border-color: #5c2424;
+        }
+        .btn-off:hover { background-color: #522424; }
+    </style>
+</head>
+<body>
+
+    <!-- Область с поездом ДП6 -->
+    <div class="train-viewer">
+        <!-- Важно: укажите правильный путь к сохраненной картинке -->
+        <img src="dp6.jpg" alt="ДП6-002">
+        
+        <!-- Элементы свечения, наложенные поверх фар -->
+        <div id="left-light" class="buffer-light light-left-bottom"></div>
+        <div id="right-light" class="buffer-light light-right-bottom"></div>
+    </div>
+
+    <!-- Пульт управления огнями -->
+    <div class="control-panel">
+        <h3>БУФЕРНЫЕ ОГНИ</h3>
+        <div class="btn-grid">
+            <button onclick="setStatic('white-on')">БЕЛЫЙ ВКЛ</button>
+            <button onclick="setStatic('red-on')">КРАСНЫЙ ВКЛ</button>
+            <button class="btn-off" onclick="clearAll()">ВЫКЛЮЧИТЬ ВСЕ</button>
+        </div>
+
+        <h3>РЕЖИМЫ МИГАНИЯ</h3>
+        <div class="btn-grid">
+            <button onclick="startBlink('sync', 'white-on')">СИНХРО БЕЛЫЙ</button>
+            <button onclick="startBlink('alternate', 'white-on')">ПООЧЕРЕДНО</button>
+            <button onclick="startBlink('sync', 'red-on')">СИНХРО КРАСНЫЙ</button>
+            <button onclick="startBlink('police', '')">ТРЕВОГА (Б/К)</button>
+        </div>
+    </div>
+
+    <script>
+        const leftLight = document.getElementById('left-light');
+        const rightLight = document.getElementById('right-light');
+        let blinkTimer = null;
+
+        // Полное отключение всех огней и эффектов
+        function clearAll() {
+            if (blinkTimer) {
+                clearInterval(blinkTimer);
+                blinkTimer = null;
+            }
+            leftLight.className = 'buffer-light light-left-bottom';
+            rightLight.className = 'buffer-light light-right-bottom';
+        }
+
+        // Включение постоянного горения (белый или красный)
+        function setStatic(lightClass) {
+            clearAll();
+            leftLight.classList.add(lightClass);
+            rightLight.classList.add(lightClass);
+        }
+
+        // Логика автоматического мигания
+        function startBlink(type, lightClass) {
+            clearAll();
+            let state = false;
+
+            if (type === 'sync') {
+                // Одновременное мигание выбранным цветом
+                blinkTimer = setInterval(() => {
+                    state = !state;
+                    if (state) {
+                        leftLight.classList.add(lightClass);
+                        rightLight.classList.add(lightClass);
+                    } else {
+                        leftLight.classList.remove(lightClass);
+                        rightLight.classList.remove(lightClass);
+                    }
+                }, 400); // 400 мс — скорость мигания
+            } 
+            else if (type === 'alternate') {
+                // Поочередное мигание левой и правой фары
+                leftLight.classList.add(lightClass);
+                blinkTimer = setInterval(() => {
+                    leftLight.classList.toggle(lightClass);
+                    rightLight.classList.toggle(lightClass);
+                }, 400);
+            }
+            else if (type === 'police') {
+                // Экстремальный режим: левая горит красным, правая белым, затем меняются
+                leftLight.classList.add('red-on');
+                rightLight.classList.add('white-on');
+                blinkTimer = setInterval(() => {
+                    if (leftLight.classList.contains('red-on')) {
+                        leftLight.className = 'buffer-light light-left-bottom white-on';
+                        rightLight.className = 'buffer-light light-right-bottom red-on';
+                    } else {
+                        leftLight.className = 'buffer-light light-left-bottom red-on';
+                        rightLight.className = 'buffer-light light-right-bottom white-on';
+                    }
+                }, 250); // Мигает быстрее
+            }
+        }
+    </script>
+</body>
+</html>
